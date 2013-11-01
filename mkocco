@@ -1,25 +1,97 @@
 #!/bin/bash
+# **mkocco** is a quick-and-dirty, literate-programming-style documentation
+# generator written  in __POSIX shell__ for __Makefile__. It borrows 
+# liberally from [shocco][sh], the original shell literate-programming-style 
+# doc generator.
+#
+# `mkocco(1)` reads Makefile scripts and produces annotated source documentation
+# in HTML format. Commnets are formatted with Markdown and presented
+# alongside syntax highlighted code so as to give an annotation effect.
+#
+#
+# The generated HTML is written to `stdout`.
+#
+# Usage and Prerequisites
+# -----------------------
 
+# The most important line in any shell program
 set -e
 set -x
 
+# There's a lot of different ways to do usage messages in shell scripts.
+# This is my favorite: you write the usage message in a comment --
+# typically right after the shebang line -- *BUT*, use a special comment prefix
+# like `#/` so that its easy to pull these lines out.
+#
+# This also illustrates one of mkocco's corner features. Only comment lines
+# padded with a space are considered documentation. A `#` followed by any
+# other character is considered code.
+#
+#/ Usage: mkocco [-t <title>] [<source>]
+#/ Create literate-programming-style documentation for Makefile.
+#/
+#/ The mkocco program reads a Makefile from <source> and writes
+#/ generated documentation in HTML format to stdout. When <source> is
+#/ '-' or not specified, mkocco reads from stdin.
+
+# This is the second part of the usage message technique: `grep` yourself
+# for the usage message comment prefix and then cut off the first few
+# characters so that everything lines up.
 expr -- "$*" : ".*--help" >/dev/null && {
     grep '^#/' <"$0" | cut -c4-
     exit 0
 }
 
+usage () {
+    echo "Usage:    $0 [options] <source> "
+    echo " "
+    echo "Options: "
+    echo "      -h          show this help message and exit."
+    echo "      -t  title   the title"
+    echo "      -l  lang    the language"
 
-test "$1" == '-t' && {
-    title="$2"
-    shift;shift
+    exit 0;
 }
 
-file="$1"
-: ${title:=$(basename "$file")}
+title="$0"
+lang=sh
+while getopts "t:l:h" var
+do
+    case ${var} in
+        t)  title="${OPTARG}" ;;
+        l)  lang="${OPTARG}" ;;
+        h)  usage ;;
+        \?) exit 2 ;;
+    esac
+done
+#echo $OPTIND
+#echo $*
+shift $(($OPTIND - 1))
+
+file=$*
+# A custom title may be specified with the `-t` option. We use the filename
+# as the title if none is given.
+#test "$1" == '-t' && {
+#    title="$2"
+#    shift;shift
+#}
 
 
+# Next argument should be the `<source>` file. Grab it, and use its basename
+# as the title if none was given with the `-t` option
+#file="$1"
+#: ${title:=$(basename "$file")}
+
+# On GNU systems, csplit doesn't elide empty ifles by default:
 CSPLITARGS=$( (csplit --version 2>/dev/null | grep -i gnu >/dev/null) && echo "--elide-empty-files" || true )
 
+# We're going to need a `markdown` command to run comments through. This can
+# be [Gruber's `Markdown.pl`][md] (included in the mkocco distribution) or
+# Discount's super fast `markdown(1)` in C. Try to figure out if either are
+# available and then bail if we can't find anything.
+#
+# [md]: http://daringfireball.net/projects/markdown/
+# [ds]: http://www.pell.portland.or.us/~orc/Code/discount/
 command -v "$MARKDOWN" >/dev/null || {
     if command -v Markdown.pl >/dev/null
     then alias markdown='Markdown.pl'
@@ -30,8 +102,16 @@ command -v "$MARKDOWN" >/dev/null || {
     fi
 }
 
+# Work and Cleanup
+# ----------------
+
+# Make sure we have a `TMPDIR` set. the `:=` parameter expansion assigns
+# the value if `TMPDIR` is unset or null.
 : ${TMPDIR:=/tmp}
 
+# Create a temporary directory for doing work. Use `mktemp(1)` if
+# available; but, since `mktemp(1)` is not POSIX specified, fallbaok on
+# naive temp dir generate using the program's basename and pid.
 : ${WORK:=$(
     if command -v mktemp 1>/dev/null 2>&1
     then
@@ -136,7 +216,7 @@ cat -s |
 sed '
     s/^$/# DIVIDER/
     s/^CODE //' |
-pygmentize -l sh -f html -O encoding=utf8 |
+pygmentize -l $lang -f html -O encoding=utf8 |
 
 sed '
     s/<div class="highlight"><pre>//
@@ -160,7 +240,6 @@ layout () {
 <head>
     <meta http-equiv='content-type' content='text/html;charset=utf-8'>
     <title>$1</title>
-    <link rel=stylesheet href="https://raw.github.com/tingletech/docco/xslt/resources/docco.css">
     <link rel=stylesheet href="https://raw.github.com/datawolf/mkocco/master/mkocco.css">
 </head>
 <body>
@@ -272,6 +351,7 @@ layout "$title"
 # [do]: http://jashkenas.github.com/docco/
 # [kn]: http://www-cs-faculty.stanford.edu/~knuth/lp.html
 # [wi]: http://en.wikipedia.org/wiki/Literate_programming
+# [sh]: http://rtomayko.github.com/shocco/
 #
 # Copyright (C) [Ryan Tomayko <tomayko.com/about>](http://tomayko.com/about)<br>
 # This is Free Software distributed under the MIT license.
