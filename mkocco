@@ -160,6 +160,7 @@ layout () {
 <head>
     <meta http-equiv='content-type' content='text/html;charset=utf-8'>
     <title>$1</title>
+    <link rel=stylesheet href="https://raw.github.com/tingletech/docco/xslt/resources/docco.css">
     <link rel=stylesheet href="https://raw.github.com/datawolf/mkocco/master/mkocco.css">
 </head>
 <body>
