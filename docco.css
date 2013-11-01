@@ -1,0 +1,277 @@
+#!/bin/bash
+
+set -e
+set -x
+
+expr -- "$*" : ".*--help" >/dev/null && {
+    grep '^#/' <"$0" | cut -c4-
+    exit 0
+}
+
+
+test "$1" == '-t' && {
+    title="$2"
+    shift;shift
+}
+
+file="$1"
+: ${title:=$(basename "$file")}
+
+
+CSPLITARGS=$( (csplit --version 2>/dev/null | grep -i gnu >/dev/null) && echo "--elide-empty-files" || true )
+
+command -v "$MARKDOWN" >/dev/null || {
+    if command -v Markdown.pl >/dev/null
+    then alias markdown='Markdown.pl'
+    elif test -f "$(dirname $0)/Markdown.pl"
+    then alias markdown="perl $(dirname $0)/Markdown.pl"
+    else echo "$(basename $0): markdown command not found." 1>&2
+         exit 1
+    fi
+}
+
+: ${TMPDIR:=/tmp}
+
+: ${WORK:=$(
+    if command -v mktemp 1>/dev/null 2>&1
+    then
+        mktemp -d "$TMPDIR/$(basename $0).XXXXXXX"
+    else
+        dir="$TMPDIR/$(basename $0).$$"
+        mkdir "$dir"
+        echo "$dir"
+    fi
+)}
+
+test -z "$WORK" -o "$WORK" = '/' && {
+    echo "$(basename $0): could not create a temp work dir"
+    exit 1
+}
+
+trap "rm -fr $WORK" 0
+
+(cat "$file" && printf "\n\n# \n\n") |
+
+(
+    lineno=0
+    codebuf=;codehead=
+    docsbuf=;docshead=
+    while read -r line
+    do
+        # Issue a warning if the first line of the script is not a shebang
+        # line. This can screw things up and wreck our attempt at
+        # flip-flopping the two headings.
+        lineno=$(( $lineno + 1 ))
+        test $lineno = 1 && ! expr "$line" : "#!.*" >/dev/null &&
+        echo "$(basename $0): ${file}:1 [warn] shebang! line missing." 1>&2
+
+        # Accumulate comment lines into `$docsbuf` and code lines into
+        # `$codebuf`. Only lines matching `/#(?: |$)/` are considered doc
+        # lines.
+        if expr "$line" : '# ' >/dev/null || test "$line" = "#"
+        then docsbuf="$docsbuf$line
+"
+        else codebuf="$codebuf$line
+"
+        fi
+
+        # If we have stuff in both `$docsbuf` and `$codebuf`, it means
+        # we're at some kind of boundary. If `$codehead` isn't set, we're at
+        # the first comment/doc line, so store the buffer to `$codehead` and
+        # keep going. If `$codehead` *is* set, we've crossed into another code
+        # block and are ready to output both blocks and then straight pipe
+        # everything by `exec`'ing `cat`.
+        if test -n "$docsbuf" -a -n "$codebuf"
+        then
+            if test -n "$codehead"
+            then docshead="$docsbuf"
+                 docsbuf=""
+                 printf "%s" "$docshead"
+                 printf "%s" "$codehead"
+                 echo "$line"
+                 exec cat
+            else codehead="$codebuf"
+                 codebuf=
+            fi
+        fi
+    done
+
+    # We made it to the end of the file without a single comment line, or
+    # there was only a single comment block ending the file. Output our
+    # docsbuf or a fake comment and then the codebuf or codehead.
+    echo "${docsbuf:-#}"
+    echo "${codebuf:-"$codehead"}"
+)   |
+
+sed -n '
+    s/^/:/
+    s/^:[   ]\{0,\}# /DOCS /p
+    s/^:[   ]\{0,\}#$/DOCS /p
+    s/^:/CODE /p
+' > "$WORK/raw"
+cp ./Markdown.pl  "$WORK"
+cd "$WORK"
+sed 's/^CODE.*//' < raw |
+cat -s  |
+sed '
+    s/^$/##### DIVIDER/
+    s/^DOCS //
+' |
+perl $(dirname $0)/Markdown.pl |
+(
+    csplit -sk                               \
+           $CSPLITARGS                       \
+           -f docs                           \
+           -n 4                              \
+           - '/<h5>DIVIDER<\/h5>/' '{9999}'  \
+           2>/dev/null                      ||
+    true
+)
+
+
+# Second Pass: Code Formatting
+
+sed 's/^DOCS.*//' < raw | 
+cat -s |
+sed '
+    s/^$/# DIVIDER/
+    s/^CODE //' |
+pygmentize -l sh -f html -O encoding=utf8 |
+
+sed '
+    s/<div class="highlight"><pre>//
+    s/^<\/pre><\/div>//' |
+(
+    DIVIDER='/<span class="c"># DIVIDER</span>/'
+    csplit -sk                   \
+           $CSPLITARGS           \
+           -f code               \
+           -n 4 -                \
+           "$DIVIDER" '{9999}'   \
+           2>/dev/null ||
+    true
+)
+
+
+layout () {
+    cat <<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv='content-type' content='text/html;charset=utf-8'>
+    <title>$1</title>
+    <link rel=stylesheet href="https://github.com/milewise/docco/blob/master/resources/docco.css">
+</head>
+<body>
+<div id=container>
+    <div id=background></div>
+    <table cellspacing=0 cellpadding=0>
+    <thead>
+      <tr>
+        <th class=docs><h1>$1</h1></th>
+        <th class=code></th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr><td class='docs'>$(cat)</td><td class='code'></td></tr>
+    </tbody>
+    </table>
+</div>
+</body>
+</html>
+HTML
+}
+
+# Recombining
+# -----------
+
+# Alright, we have separate files for each docs section and separate
+# files for each code section. We've defined a function to wrap the
+# results in the standard layout. All that's left to do now is put
+# everything back together.
+
+# Before starting the pipeline, decide the order in which to present the
+# files.  If `code0000` is empty, it should appear first so the remaining
+# files are presented `docs0000`, `code0001`, `docs0001`, and so on.  If
+# `code0000` is not empty, `docs0000` should appear first so the files
+# are presented `docs0000`, `code0000`, `docs0001`, `code0001` and so on.
+#
+# Ultimately, this means that if `code0000` is empty, the `-r` option
+# should not be provided with the final `-k` option group to `sort`(1) in
+# the pipeline below.
+if stat -c"%s" /dev/null >/dev/null 2>/dev/null ; then
+    # GNU stat
+    [ "$(stat -c"%s" "code0000")" = 0 ] && sortopt="" || sortopt="r"
+else
+    # BSD stat
+    [ "$(stat -f"%z" "code0000")" = 0 ] && sortopt="" || sortopt="r"
+fi
+
+# Start the pipeline with a simple list of split out temp filename. One file
+# per line.
+ls -1 docs[0-9]* code[0-9]* 2>/dev/null      |
+# Now sort the list of files by the *number* first and then by the type. The
+# list will look something like this when `sort(1)` is done with it:
+#
+#     docs0000
+#     code0000
+#     docs0001
+#     code0001
+#     docs0002
+#     code0002
+#     ...
+
+sort -n -k"1.5" -k"1.1$sortopt"             |
+# And if we pass those files to `cat(1)` in that order, it concatenates them
+# in exactly the way we need. `xargs(1)` reads from `stdin` and passes each
+# line of input as a separate argument to the program given.
+#
+# We could also have written this as:
+#
+#   ls -1 docs* code* | sort -n -k1.5 -k1.1r  
+#
+# I like to keep things to a simple flat pipeline when possible, hence the
+# `xargs` approach.
+xargs cat                   |
+# Run a quick substitution on the embedded dividers to turn them into table
+# rows and cells. This also wraps each code block in a `<div class=highlight>`
+# so that the CSS kicks in properly.
+{
+    DOCSDIVIDER='<h5>DIVIDER</h5>'
+    DOCSREPLACE='</pre></div></td></tr><tr><td class=docs>'
+    CODEDIVIDER='<span class="c"># DIVIDER</span>'
+    CODEREPLACE='</td><td class=code><div class=highlight><pre>'
+    sed "
+        s@${DOCSDIVIDER}@${DOCSREPLACE}@
+        s@${CODEDIVIDER}@${CODEREPLACE}@
+    "
+}                                            |
+#
+# Pipe our recombined HTML into the layout and let it write the result to
+# `stdout`.
+layout "$title"
+#
+# More
+# ----
+#
+# **shocco** is the third tool in a growing family of quick-and-dirty,
+# literate-programming-style documentation generators:
+#
+#   * [Docco][do] - The original. Written in CoffeeScript and generates
+#     documentation for CoffeeScript, JavaScript, and Ruby.
+#   * [Rocco][ro] - A port of Docco to Ruby.
+#
+# If you like this sort of thing, you may also find interesting Knuth's
+# massive body of work on literate programming:
+#
+#   * [Knuth: Literate Programming][kn]
+#   * [Literate Programming on Wikipedia][wi]
+#
+# [ro]: http://rtomayko.github.com/rocco/
+# [do]: http://jashkenas.github.com/docco/
+# [kn]: http://www-cs-faculty.stanford.edu/~knuth/lp.html
+# [wi]: http://en.wikipedia.org/wiki/Literate_programming
+#
+# Copyright (C) [Ryan Tomayko <tomayko.com/about>](http://tomayko.com/about)<br>
+# This is Free Software distributed under the MIT license.
+:
