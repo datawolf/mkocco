@@ -1,10 +1,10 @@
 #!/bin/bash
 # **mkocco** is a quick-and-dirty, literate-programming-style documentation
-# generator written  in __POSIX shell__ for __Makefile__. It borrows 
-# liberally from [shocco][sh], the original shell literate-programming-style 
+# generator written  in __POSIX shell__ for __Makefile__ and __shell script__.
+# It borrows liberally from [Docco][do], the original Q&D literate-programming-style 
 # doc generator.
 #
-# `mkocco(1)` reads Makefile scripts and produces annotated source documentation
+# `mkocco(1)` reads Makefile or shell scripts and produces annotated source documentation
 # in HTML format. Commnets are formatted with Markdown and presented
 # alongside syntax highlighted code so as to give an annotation effect.
 #
@@ -16,7 +16,10 @@
 
 # The most important line in any shell program
 set -e
-set -x
+
+# When debug this mkocco shell script, you may should `set -x`
+#
+# set -x
 
 # There's a lot of different ways to do usage messages in shell scripts.
 # This is my favorite: you write the usage message in a comment --
@@ -27,10 +30,10 @@ set -x
 # padded with a space are considered documentation. A `#` followed by any
 # other character is considered code.
 #
-#/ Usage: mkocco [-t <title>] [<source>]
+#/ Usage: mkocco [-t <title>] [-l <language>]  [-h] [<source>]
 #/ Create literate-programming-style documentation for Makefile.
 #/
-#/ The mkocco program reads a Makefile from <source> and writes
+#/ The mkocco program reads a Makefile or shell file from <source> and writes
 #/ generated documentation in HTML format to stdout. When <source> is
 #/ '-' or not specified, mkocco reads from stdin.
 
@@ -42,6 +45,8 @@ expr -- "$*" : ".*--help" >/dev/null && {
     exit 0
 }
 
+
+# Output the usage of the command `mkocco(1)`
 usage () {
     echo "Usage:    $0 [options] <source> "
     echo " "
@@ -53,8 +58,14 @@ usage () {
     exit 0;
 }
 
+# The default value of `title` is `source` file name.
 title="$0"
+
+# The default value of the file is shell script.
 lang=sh
+
+
+# Process the arguement 
 while getopts "t:l:h" var
 do
     case ${var} in
@@ -64,23 +75,13 @@ do
         \?) exit 2 ;;
     esac
 done
-#echo $OPTIND
-#echo $*
+
 shift $(($OPTIND - 1))
 
+
+# Using `file` to store source file name.
 file=$*
-# A custom title may be specified with the `-t` option. We use the filename
-# as the title if none is given.
-#test "$1" == '-t' && {
-#    title="$2"
-#    shift;shift
-#}
 
-
-# Next argument should be the `<source>` file. Grab it, and use its basename
-# as the title if none was given with the `-t` option
-#file="$1"
-#: ${title:=$(basename "$file")}
 
 # On GNU systems, csplit doesn't elide empty ifles by default:
 CSPLITARGS=$( (csplit --version 2>/dev/null | grep -i gnu >/dev/null) && echo "--elide-empty-files" || true )
@@ -101,6 +102,7 @@ command -v "$MARKDOWN" >/dev/null || {
          exit 1
     fi
 }
+
 
 # Work and Cleanup
 # ----------------
@@ -123,15 +125,40 @@ command -v "$MARKDOWN" >/dev/null || {
     fi
 )}
 
+
+# We want to be absolutely sure we are not going to do something stupid
+# like `.` or `/` as aa work dir. Better safe than sorry.
 test -z "$WORK" -o "$WORK" = '/' && {
     echo "$(basename $0): could not create a temp work dir"
     exit 1
 }
 
+
+# We are about to create a ton of shit under our `$WORK` directory. Register
+# an `EXIT` trap that cleans everything up. This guarantees we do not leave
+# anything hanging around unless we are killed with a `SIGKILL`.
 trap "rm -fr $WORK" 0
 
-(cat "$file" && printf "\n\n# \n\n") |
 
+# Preformatting
+# -------------
+#
+# Start out by applying some light preformatting to the `<source>` file to 
+# make the code and doc formatting phases a bit easier. The result of this
+# pipeline is written to a temp file user the `$WORK` directory so we can
+# take a few passes over it.
+
+# Get a pipeline going with the `<source>` data. We write a single blank
+# line at the end of the file to make sure we have an equal number of code/commnet
+# pairs.
+(cat "$file" && printf "\n\n# \n\n") |
+# We want the shebang line and any code preceding the first commnet to 
+# appear as the first code block. This inverts the normal flow of things.
+# Usually, we have comment text followed by code; in this case, we have
+# code followed by commnet text.
+#
+# Read the first code and docs headers and flip them so the first docs block
+# comes before the first code block.
 (
     lineno=0
     codebuf=;codehead=
@@ -183,21 +210,78 @@ trap "rm -fr $WORK" 0
     echo "${codebuf:-"$codehead"}"
 )   |
 
+
+# Remove comment leader text from all comment lines. Then prefix all
+# comment lines with "DOCS" and interpreted / code lines with "CODE".
+# The stream text might look like this after moving through the `sed`
+# filters:
+#
+#     CODE #!/bin/sh
+#     CODE #/ Usage: mkocco <file>
+#     DOCS Docco for and in POSIX shell.
+#     CODE
+#     CODE PATH="/bin:/usr/bin"
+#     CODE
+#     DOCS Start by numbering all lines in the input file...
+#     ...
+#
+# Once we pass through `sed`, save this off in our work directory so
+# we can take a few passes over it.
 sed -n '
     s/^/:/
     s/^:[   ]\{0,\}# /DOCS /p
     s/^:[   ]\{0,\}#$/DOCS /p
     s/^:/CODE /p
 ' > "$WORK/raw"
+
+# copy Markdown.pl to the `$WORK`
 cp ./Markdown.pl  "$WORK"
+
+# Now that we've read and formatted our input file for further parsing,
+# change into the work directory. The program will finish up in there.
 cd "$WORK"
+
+# First Pass: Comment Formatting
+# ------------------------------
+
+# Start a pipeline going on our preformatted input.
+# Replace all CODE lines with entirely blank lines. We're not interested
+# in code right now, other than knowing where comments end and code begins
+# and code begins and comments end.
 sed 's/^CODE.*//' < raw |
-cat -s  |
+
+# Now squeeze multiple blank lines into a single blank line.
+#
+# __TODO:__ `cat -s` is not POSIX and doesn't squeeze lines on BSD. Use
+# the sed line squeezing code mentioned in the POSIX `cat(1)` manual page
+# instead.
+cat -s                                       |
+
+# At this point in the pipeline, our stream text looks something like this:
+#
+#     DOCS Now that we've read and formatted ...
+#     DOCS change into the work directory. The rest ...
+#     DOCS in there.
+#
+#     DOCS First Pass: Comment Formatting
+#     DOCS ------------------------------
+#
+# Blank lines represent code segments. We want to replace all blank lines
+# with a dividing marker and remove the "DOCS" prefix from docs lines.
 sed '
     s/^$/##### DIVIDER/
     s/^DOCS //
 ' |
+
+# The current stream text is suitable for input to `markdown(1)`. It takes
+# our doc text with embedded `DIVIDER`s and outputs HTML.
 perl $(dirname $0)/Markdown.pl |
+
+# Now this where shit starts to get a little crazy. We use `csplit(1)` to
+# split the HTML into a bunch of individual files. The files are named
+# as `docs0000`, `docs0001`, `docs0002`, ... Each file includes a single
+# doc *section*. These files will sit here while we take a similar pass over
+# the source code.
 (
     csplit -sk                               \
            $CSPLITARGS                       \
@@ -209,18 +293,40 @@ perl $(dirname $0)/Markdown.pl |
 )
 
 
-# Second Pass: Code Formatting
 
-sed 's/^DOCS.*//' < raw | 
-cat -s |
+# Second Pass: Code Formatting
+# ----------------------------
+#
+# This is exactly like the first pass but we're focusing on code instead of
+# comments. We use the same basic technique to separate the two and isolate
+# the code blocks.
+
+# Get another pipeline going on our performatted input file.
+# Replace DOCS lines with blank lines.
+sed 's/^DOCS.*//' < raw                     |
+
+# Squeeze multiple blank lines into a single blank line.
+cat -s                                      |
+
+# Replace blank lines with a `DIVIDER` marker and remove prefix
+# from `CODE` lines.
 sed '
     s/^$/# DIVIDER/
-    s/^CODE //' |
+    s/^CODE //'                             |
+
+# Now pass the code through `pygmentize` for syntax highlighting. We tell it
+# the the input is `sh` and that we want HTML output.
 pygmentize -l $lang -f html -O encoding=utf8 |
 
+# Post filter the pygments output to remove partial `<pre>` blocks. We add
+# these back in at each section when we build the output document.
 sed '
     s/<div class="highlight"><pre>//
-    s/^<\/pre><\/div>//' |
+    s/^<\/pre><\/div>//'                    |
+
+# Again with the `csplit(1)`. Each code section is written to a separate
+# file, this time with a `codeXXX` prefix. There should be the same number
+# of `codeXXX` files as there are `docsXXX` files.
 (
     DIVIDER='/<span class="c"># DIVIDER</span>/'
     csplit -sk                   \
@@ -232,7 +338,19 @@ sed '
     true
 )
 
+# At this point, we have separate files for each docs section and separate
+# files for each code section.
 
+# HTML Template
+# -------------
+
+# Create a function for apply the standard [Docco][do] HTML layout, using
+# [jashkenas][ja]'s gorgeous CSS for styles. Wrapping the layout in a function
+# lets us apply it elsewhere simply by piping in a body.
+#
+#
+# [ja]: http://github.com/jashkenas/
+# [do]: http://jashkenas.github.com/docco/
 layout () {
     cat <<HTML
 <!DOCTYPE html>
@@ -240,7 +358,7 @@ layout () {
 <head>
     <meta http-equiv='content-type' content='text/html;charset=utf-8'>
     <title>$1</title>
-    <link rel=stylesheet href="https://raw.github.com/datawolf/mkocco/master/mkocco.css">
+    <link rel=stylesheet href="http://blog.l-cloud.org/stylesheets/mkocco.css">
 </head>
 <body>
 <div id=container>

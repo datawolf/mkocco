@@ -2,8 +2,8 @@
 <html>
 <head>
     <meta http-equiv='content-type' content='text/html;charset=utf-8'>
-    <title>shocco.sh</title>
-    <link rel=stylesheet href="mkocco.css">
+    <title>mkocco程序说明</title>
+    <link rel=stylesheet href="http://blog.l-cloud.org/stylesheets/mkocco.css">
 </head>
 <body>
 <div id=container>
@@ -11,52 +11,41 @@
     <table cellspacing=0 cellpadding=0>
     <thead>
       <tr>
-        <th class=docs><h1>shocco.sh</h1></th>
+        <th class=docs><h1>mkocco程序说明</h1></th>
         <th class=code></th>
       </tr>
     </thead>
     <tbody>
-        <tr><td class='docs'><p><strong>shocco</strong> is a quick-and-dirty, literate-programming-style documentation
-generator written for and in <strong>POSIX shell</strong>. It borrows liberally from
-<a href="http://jashkenas.github.com/docco/">Docco</a>, the original Q&amp;D literate-programming-style doc generator.</p>
+        <tr><td class='docs'><p><strong>mkocco</strong> is a quick-and-dirty, literate-programming-style documentation
+generator written  in <strong>POSIX shell</strong> for <strong>Makefile</strong> and <strong>shell script</strong>.
+It borrows liberally from <a href="http://jashkenas.github.com/docco/">Docco</a>, the original Q&amp;D literate-programming-style
+doc generator.</p>
 
-<p><code>shocco(1)</code> reads shell scripts and produces annotated source documentation
-in HTML format. Comments are formatted with Markdown and presented
-alongside syntax highlighted code so as to give an annotation effect. This
-page is the result of running <code>shocco</code> against <a href="https://github.com/rtomayko/shocco/blob/master/shocco.sh#commit">its own source file</a>.</p>
-
-<p>shocco is built with <code>make(1)</code> and installs under <code>/usr/local</code> by default:</p>
-
-<pre><code>git clone git://github.com/rtomayko/shocco.git
-cd shocco
-make
-sudo make install
-# or just copy 'shocco' wherever you need it
-</code></pre>
-
-<p>Once installed, the <code>shocco</code> program can be used to generate documentation
-for a shell script:</p>
-
-<pre><code>shocco shocco.sh
-</code></pre>
+<p><code>mkocco(1)</code> reads Makefile or shell scripts and produces annotated source documentation
+in HTML format. Commnets are formatted with Markdown and presented
+alongside syntax highlighted code so as to give an annotation effect.</p>
 
 <p>The generated HTML is written to <code>stdout</code>.</p>
-
-</td><td class=code><div class=highlight><pre>
-<span class="c">#!/bin/sh</span>
-
-</pre></div></td></tr><tr><td class=docs>
 
 <h2>Usage and Prerequisites</h2>
 
 </td><td class=code><div class=highlight><pre>
+<span class="c">#!/bin/bash</span>
 
 </pre></div></td></tr><tr><td class=docs>
 
-<p>The most important line in any shell program.</p>
+<p>The most important line in any shell program</p>
 
 </td><td class=code><div class=highlight><pre>
 <span class="nb">set</span> -e
+
+</pre></div></td></tr><tr><td class=docs>
+
+<p>When debug this mkocco shell script, you may should <code>set -x</code></p>
+
+<p>set -x</p>
+
+</td><td class=code><div class=highlight><pre>
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -65,17 +54,17 @@ This is my favorite: you write the usage message in a comment --
 typically right after the shebang line -- <em>BUT</em>, use a special comment prefix
 like <code>#/</code> so that its easy to pull these lines out.</p>
 
-<p>This also illustrates one of shocco's corner features. Only comment lines
+<p>This also illustrates one of mkocco's corner features. Only comment lines
 padded with a space are considered documentation. A <code>#</code> followed by any
 other character is considered code.</p>
 
 </td><td class=code><div class=highlight><pre>
-<span class="c">#/ Usage: shocco [-t &lt;title&gt;] [&lt;source&gt;]</span>
-<span class="c">#/ Create literate-programming-style documentation for shell scripts.</span>
+<span class="c">#/ Usage: mkocco [-t &lt;title&gt;] [-l &lt;language&gt;]  [-h] [&lt;source&gt;]</span>
+<span class="c">#/ Create literate-programming-style documentation for Makefile.</span>
 <span class="c">#/</span>
-<span class="c">#/ The shocco program reads a shell script from &lt;source&gt; and writes</span>
+<span class="c">#/ The mkocco program reads a Makefile or shell file from &lt;source&gt; and writes</span>
 <span class="c">#/ generated documentation in HTML format to stdout. When &lt;source&gt; is</span>
-<span class="c">#/ &#39;-&#39; or not specified, shocco reads from stdin.</span>
+<span class="c">#/ &#39;-&#39; or not specified, mkocco reads from stdin.</span>
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -89,38 +78,67 @@ expr -- <span class="s2">&quot;$*&quot;</span> : <span class="s2">&quot;.*--help
     <span class="nb">exit </span>0
 <span class="o">}</span>
 
+
 </pre></div></td></tr><tr><td class=docs>
 
-<p>A custom title may be specified with the <code>-t</code> option. We use the filename
-as the title if none is given.</p>
+<p>Output the usage of the command <code>mkocco(1)</code></p>
 
 </td><td class=code><div class=highlight><pre>
-<span class="nb">test</span> <span class="s2">&quot;$1&quot;</span> <span class="o">=</span> <span class="s1">&#39;-t&#39;</span> <span class="o">&amp;&amp;</span> <span class="o">{</span>
-    <span class="nv">title</span><span class="o">=</span><span class="s2">&quot;$2&quot;</span>
-    <span class="nb">shift</span>;<span class="nb">shift</span>
+usage <span class="o">()</span> <span class="o">{</span>
+    <span class="nb">echo</span> <span class="s2">&quot;Usage:    $0 [options] &lt;source&gt; &quot;</span>
+    <span class="nb">echo</span> <span class="s2">&quot; &quot;</span>
+    <span class="nb">echo</span> <span class="s2">&quot;Options: &quot;</span>
+    <span class="nb">echo</span> <span class="s2">&quot;      -h          show this help message and exit.&quot;</span>
+    <span class="nb">echo</span> <span class="s2">&quot;      -t  title   the title&quot;</span>
+    <span class="nb">echo</span> <span class="s2">&quot;      -l  lang    the language&quot;</span>
+
+    <span class="nb">exit </span>0;
 <span class="o">}</span>
 
 </pre></div></td></tr><tr><td class=docs>
 
-<p>Next argument should be the <code>&lt;source&gt;</code> file. Grab it, and use its basename
-as the title if none was given with the <code>-t</code> option.</p>
+<p>The default value of <code>title</code> is <code>source</code> file name.</p>
 
 </td><td class=code><div class=highlight><pre>
-<span class="nv">file</span><span class="o">=</span><span class="s2">&quot;$1&quot;</span>
-: <span class="k">${</span><span class="nv">title</span><span class="p">:=</span><span class="k">$(</span>basename <span class="s2">&quot;$file&quot;</span><span class="k">)}</span>
+<span class="nv">title</span><span class="o">=</span><span class="s2">&quot;$0&quot;</span>
 
 </pre></div></td></tr><tr><td class=docs>
 
-<p>These are replaced with the full paths to real utilities by the
-configure/make system.</p>
+<p>The default value of the file is shell script.</p>
 
 </td><td class=code><div class=highlight><pre>
-<span class="nv">MARKDOWN</span><span class="o">=</span><span class="s1">&#39;@@MARKDOWN@@&#39;</span>
-<span class="nv">PYGMENTIZE</span><span class="o">=</span><span class="s1">&#39;@@PYGMENTIZE@@&#39;</span>
+<span class="nv">lang</span><span class="o">=</span>sh
+
 
 </pre></div></td></tr><tr><td class=docs>
 
-<p>On GNU systems, csplit doesn't elide empty files by default:</p>
+<p>Process the arguement </p>
+
+</td><td class=code><div class=highlight><pre>
+<span class="k">while </span><span class="nb">getopts</span> <span class="s2">&quot;t:l:h&quot;</span> var
+<span class="k">do</span>
+<span class="k">    case</span> <span class="k">${</span><span class="nv">var</span><span class="k">}</span> in
+        t<span class="o">)</span>  <span class="nv">title</span><span class="o">=</span><span class="s2">&quot;${OPTARG}&quot;</span> ;;
+        l<span class="o">)</span>  <span class="nv">lang</span><span class="o">=</span><span class="s2">&quot;${OPTARG}&quot;</span> ;;
+        h<span class="o">)</span>  usage ;;
+        <span class="se">\?</span><span class="o">)</span> <span class="nb">exit </span>2 ;;
+    <span class="k">esac</span>
+<span class="k">done</span>
+
+<span class="nb">shift</span> <span class="k">$((</span><span class="nv">$OPTIND</span> <span class="o">-</span> <span class="m">1</span><span class="k">))</span>
+
+
+</pre></div></td></tr><tr><td class=docs>
+
+<p>Using <code>file</code> to store source file name.</p>
+
+</td><td class=code><div class=highlight><pre>
+<span class="nv">file</span><span class="o">=</span><span class="nv">$*</span>
+
+
+</pre></div></td></tr><tr><td class=docs>
+
+<p>On GNU systems, csplit doesn't elide empty ifles by default:</p>
 
 </td><td class=code><div class=highlight><pre>
 <span class="nv">CSPLITARGS</span><span class="o">=</span><span class="k">$(</span> <span class="o">(</span>csplit --version 2&gt;/dev/null | grep -i gnu &gt;/dev/null<span class="k">)</span> <span class="o">&amp;&amp;</span> <span class="nb">echo</span> <span class="s2">&quot;--elide-empty-files&quot;</span> <span class="o">||</span> <span class="nb">true</span> <span class="o">)</span>
@@ -128,7 +146,7 @@ configure/make system.</p>
 </pre></div></td></tr><tr><td class=docs>
 
 <p>We're going to need a <code>markdown</code> command to run comments through. This can
-be <a href="http://daringfireball.net/projects/markdown/">Gruber's <code>Markdown.pl</code></a> (included in the shocco distribution) or
+be <a href="http://daringfireball.net/projects/markdown/">Gruber's <code>Markdown.pl</code></a> (included in the mkocco distribution) or
 Discount's super fast <code>markdown(1)</code> in C. Try to figure out if either are
 available and then bail if we can't find anything.</p>
 
@@ -143,19 +161,6 @@ available and then bail if we can't find anything.</p>
     <span class="k">fi</span>
 <span class="o">}</span>
 
-</pre></div></td></tr><tr><td class=docs>
-
-<p>Check that <a href="http://pygments.org/">Pygments</a> is installed for syntax highlighting.</p>
-
-<p>This is a fairly hefty prerequisite. Eventually, I'd like to fallback
-on a simple non-highlighting preformatter when Pygments isn't available. For
-now, just bail out if we can't find the <code>pygmentize</code> program.</p>
-
-</td><td class=code><div class=highlight><pre>
-<span class="nb">command</span> -v <span class="s2">&quot;$PYGMENTIZE&quot;</span> &gt;/dev/null <span class="o">||</span> <span class="o">{</span>
-    <span class="nb">echo</span> <span class="s2">&quot;$(basename $0): pygmentize command not found.&quot;</span> 1&gt;&amp;2
-    <span class="nb">exit </span>1
-<span class="o">}</span>
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -165,7 +170,7 @@ now, just bail out if we can't find the <code>pygmentize</code> program.</p>
 
 </pre></div></td></tr><tr><td class=docs>
 
-<p>Make sure we have a <code>TMPDIR</code> set. The <code>:=</code> parameter expansion assigns
+<p>Make sure we have a <code>TMPDIR</code> set. the <code>:=</code> parameter expansion assigns
 the value if <code>TMPDIR</code> is unset or null.</p>
 
 </td><td class=code><div class=highlight><pre>
@@ -174,48 +179,51 @@ the value if <code>TMPDIR</code> is unset or null.</p>
 </pre></div></td></tr><tr><td class=docs>
 
 <p>Create a temporary directory for doing work. Use <code>mktemp(1)</code> if
-available; but, since <code>mktemp(1)</code> is not POSIX specified, fallback on naive
-(and insecure) temp dir generation using the program's basename and pid.</p>
+available; but, since <code>mktemp(1)</code> is not POSIX specified, fallbaok on
+naive temp dir generate using the program's basename and pid.</p>
 
 </td><td class=code><div class=highlight><pre>
 : <span class="k">${</span><span class="nv">WORK</span><span class="p">:=</span><span class="k">$(</span>
-      <span class="k">if </span><span class="nb">command</span> -v mktemp 1&gt;/dev/null 2&gt;&amp;1
-      <span class="k">then</span>
-<span class="k">          </span>mktemp -d <span class="s2">&quot;$TMPDIR/$(basename $0).XXXXXXXXXX&quot;</span>
-      <span class="k">else</span>
-<span class="k">          </span><span class="nv">dir</span><span class="o">=</span><span class="s2">&quot;$TMPDIR/$(basename $0).$$&quot;</span>
-          mkdir <span class="s2">&quot;$dir&quot;</span>
-          <span class="nb">echo</span> <span class="s2">&quot;$dir&quot;</span>
-      <span class="k">fi</span>
-  <span class="k">)}</span>
+    <span class="k">if </span><span class="nb">command</span> -v mktemp 1&gt;/dev/null 2&gt;&amp;1
+    <span class="k">then</span>
+<span class="k">        </span>mktemp -d <span class="s2">&quot;$TMPDIR/$(basename $0).XXXXXXX&quot;</span>
+    <span class="k">else</span>
+<span class="k">        </span><span class="nv">dir</span><span class="o">=</span><span class="s2">&quot;$TMPDIR/$(basename $0).$$&quot;</span>
+        mkdir <span class="s2">&quot;$dir&quot;</span>
+        <span class="nb">echo</span> <span class="s2">&quot;$dir&quot;</span>
+    <span class="k">fi</span>
+<span class="k">)}</span>
+
 
 </pre></div></td></tr><tr><td class=docs>
 
-<p>We want to be absolutely sure we're not going to do something stupid like
-use <code>.</code> or <code>/</code> as a work dir. Better safe than sorry.</p>
+<p>We want to be absolutely sure we are not going to do something stupid
+like <code>.</code> or <code>/</code> as aa work dir. Better safe than sorry.</p>
 
 </td><td class=code><div class=highlight><pre>
 <span class="nb">test</span> -z <span class="s2">&quot;$WORK&quot;</span> -o <span class="s2">&quot;$WORK&quot;</span> <span class="o">=</span> <span class="s1">&#39;/&#39;</span> <span class="o">&amp;&amp;</span> <span class="o">{</span>
-    <span class="nb">echo</span> <span class="s2">&quot;$(basename $0): could not create a temp work dir.&quot;</span>
+    <span class="nb">echo</span> <span class="s2">&quot;$(basename $0): could not create a temp work dir&quot;</span>
     <span class="nb">exit </span>1
 <span class="o">}</span>
 
+
 </pre></div></td></tr><tr><td class=docs>
 
-<p>We're about to create a ton of shit under our <code>$WORK</code> directory. Register
-an <code>EXIT</code> trap that cleans everything up. This guarantees we don't leave
-anything hanging around unless we're killed with a <code>SIGKILL</code>.</p>
+<p>We are about to create a ton of shit under our <code>$WORK</code> directory. Register
+an <code>EXIT</code> trap that cleans everything up. This guarantees we do not leave
+anything hanging around unless we are killed with a <code>SIGKILL</code>.</p>
 
 </td><td class=code><div class=highlight><pre>
-<span class="nb">trap</span> <span class="s2">&quot;rm -rf $WORK&quot;</span> 0
+<span class="nb">trap</span> <span class="s2">&quot;rm -fr $WORK&quot;</span> 0
+
 
 </pre></div></td></tr><tr><td class=docs>
 
 <h2>Preformatting</h2>
 
-<p>Start out by applying some light preformatting to the <code>&lt;source&gt;</code> file to
+<p>Start out by applying some light preformatting to the <code>&lt;source&gt;</code> file to 
 make the code and doc formatting phases a bit easier. The result of this
-pipeline is written to a temp file under the <code>$WORK</code> directory so we can
+pipeline is written to a temp file user the <code>$WORK</code> directory so we can
 take a few passes over it.</p>
 
 </td><td class=code><div class=highlight><pre>
@@ -223,18 +231,17 @@ take a few passes over it.</p>
 </pre></div></td></tr><tr><td class=docs>
 
 <p>Get a pipeline going with the <code>&lt;source&gt;</code> data. We write a single blank
-line at the end of the file to make sure we have an equal number of code/comment
+line at the end of the file to make sure we have an equal number of code/commnet
 pairs.</p>
 
 </td><td class=code><div class=highlight><pre>
-<span class="o">(</span>cat <span class="s2">&quot;$file&quot;</span> <span class="o">&amp;&amp;</span> <span class="nb">printf</span> <span class="s2">&quot;\n\n# \n\n&quot;</span><span class="o">)</span>         |
-
+<span class="o">(</span>cat <span class="s2">&quot;$file&quot;</span> <span class="o">&amp;&amp;</span> <span class="nb">printf</span> <span class="s2">&quot;\n\n# \n\n&quot;</span><span class="o">)</span> |
 </pre></div></td></tr><tr><td class=docs>
 
-<p>We want the shebang line and any code preceding the first comment to
+<p>We want the shebang line and any code preceding the first commnet to 
 appear as the first code block. This inverts the normal flow of things.
 Usually, we have comment text followed by code; in this case, we have
-code followed by comment text.</p>
+code followed by commnet text.</p>
 
 <p>Read the first code and docs headers and flip them so the first docs block
 comes before the first code block.</p>
@@ -305,7 +312,8 @@ docsbuf or a fake comment and then the codebuf or codehead.</p>
 </td><td class=code><div class=highlight><pre>
     <span class="nb">echo</span> <span class="s2">&quot;${docsbuf:-#}&quot;</span>
     <span class="nb">echo</span> <span class="s2">&quot;${codebuf:-&quot;</span><span class="nv">$codehead</span><span class="s2">&quot;}&quot;</span>
-<span class="o">)</span>                                            |
+<span class="o">)</span>   |
+
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -315,7 +323,7 @@ The stream text might look like this after moving through the <code>sed</code>
 filters:</p>
 
 <pre><code>CODE #!/bin/sh
-CODE #/ Usage: shocco &lt;file&gt;
+CODE #/ Usage: mkocco &lt;file&gt;
 DOCS Docco for and in POSIX shell.
 CODE
 CODE PATH="/bin:/usr/bin"
@@ -330,10 +338,17 @@ we can take a few passes over it.</p>
 </td><td class=code><div class=highlight><pre>
 sed -n <span class="s1">&#39;</span>
 <span class="s1">    s/^/:/</span>
-<span class="s1">    s/^:[ 	]\{0,\}# /DOCS /p</span>
-<span class="s1">    s/^:[ 	]\{0,\}#$/DOCS /p</span>
+<span class="s1">    s/^:[   ]\{0,\}# /DOCS /p</span>
+<span class="s1">    s/^:[   ]\{0,\}#$/DOCS /p</span>
 <span class="s1">    s/^:/CODE /p</span>
 <span class="s1">&#39;</span> &gt; <span class="s2">&quot;$WORK/raw&quot;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+
+<p>copy Markdown.pl to the <code>$WORK</code></p>
+
+</td><td class=code><div class=highlight><pre>
+cp ./Markdown.pl  <span class="s2">&quot;$WORK&quot;</span>
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -357,7 +372,7 @@ in code right now, other than knowing where comments end and code begins
 and code begins and comments end.</p>
 
 </td><td class=code><div class=highlight><pre>
-sed <span class="s1">&#39;s/^CODE.*//&#39;</span> &lt; raw                      |
+sed <span class="s1">&#39;s/^CODE.*//&#39;</span> &lt; raw |
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -388,7 +403,8 @@ with a dividing marker and remove the "DOCS" prefix from docs lines.</p>
 </td><td class=code><div class=highlight><pre>
 sed <span class="s1">&#39;</span>
 <span class="s1">    s/^$/##### DIVIDER/</span>
-<span class="s1">    s/^DOCS //&#39;</span>                              |
+<span class="s1">    s/^DOCS //</span>
+<span class="s1">&#39;</span> |
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -396,7 +412,7 @@ sed <span class="s1">&#39;</span>
 our doc text with embedded <code>DIVIDER</code>s and outputs HTML.</p>
 
 </td><td class=code><div class=highlight><pre>
-<span class="nv">$MARKDOWN</span>                                    |
+perl <span class="k">$(</span>dirname <span class="nv">$0</span><span class="k">)</span>/Markdown.pl |
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -416,6 +432,7 @@ the source code.</p>
            2&gt;/dev/null                      <span class="o">||</span>
     <span class="nb">true</span>
 <span class="o">)</span>
+
 
 
 </pre></div></td></tr><tr><td class=docs>
@@ -459,7 +476,7 @@ sed <span class="s1">&#39;</span>
 the the input is <code>sh</code> and that we want HTML output.</p>
 
 </td><td class=code><div class=highlight><pre>
-<span class="nv">$PYGMENTIZE</span> -l sh -f html -O <span class="nv">encoding</span><span class="o">=</span>utf8  |
+pygmentize -l <span class="nv">$lang</span> -f html -O <span class="nv">encoding</span><span class="o">=</span>utf8 |
 
 </pre></div></td></tr><tr><td class=docs>
 
@@ -516,7 +533,7 @@ layout <span class="o">()</span> <span class="o">{</span>
 <span class="s">&lt;head&gt;</span>
 <span class="s">    &lt;meta http-equiv=&#39;content-type&#39; content=&#39;text/html;charset=utf-8&#39;&gt;</span>
 <span class="s">    &lt;title&gt;$1&lt;/title&gt;</span>
-<span class="s">    &lt;link rel=stylesheet href=&quot;http://jashkenas.github.com/docco/resources/docco.css&quot;&gt;</span>
+<span class="s">    &lt;link rel=stylesheet href=&quot;http://blog.l-cloud.org/stylesheets/mkocco.css&quot;&gt;</span>
 <span class="s">&lt;/head&gt;</span>
 <span class="s">&lt;body&gt;</span>
 <span class="s">&lt;div id=container&gt;</span>
@@ -589,7 +606,6 @@ per line.</p>
 
 </td><td class=code><div class=highlight><pre>
 ls -1 docs<span class="o">[</span>0-9<span class="o">]</span>* code<span class="o">[</span>0-9<span class="o">]</span>* 2&gt;/dev/null      |
-
 </pre></div></td></tr><tr><td class=docs>
 
 <p>Now sort the list of files by the <em>number</em> first and then by the type. The
@@ -605,8 +621,8 @@ code0002
 </code></pre>
 
 </td><td class=code><div class=highlight><pre>
-sort -n -k<span class="s2">&quot;1.5&quot;</span> -k<span class="s2">&quot;1.1$sortopt&quot;</span>              |
 
+sort -n -k<span class="s2">&quot;1.5&quot;</span> -k<span class="s2">&quot;1.1$sortopt&quot;</span>             |
 </pre></div></td></tr><tr><td class=docs>
 
 <p>And if we pass those files to <code>cat(1)</code> in that order, it concatenates them
@@ -615,16 +631,13 @@ line of input as a separate argument to the program given.</p>
 
 <p>We could also have written this as:</p>
 
-<pre><code>cat $(ls -1 docs* code* | sort -n -k1.5 -k1.1r)
-</code></pre>
+<p>ls -1 docs* code* | sort -n -k1.5 -k1.1r  </p>
 
 <p>I like to keep things to a simple flat pipeline when possible, hence the
 <code>xargs</code> approach.</p>
 
 </td><td class=code><div class=highlight><pre>
-xargs cat                                    |
-
-
+xargs cat                   |
 </pre></div></td></tr><tr><td class=docs>
 
 <p>Run a quick substitution on the embedded dividers to turn them into table
@@ -642,7 +655,6 @@ so that the CSS kicks in properly.</p>
 <span class="s2">        s@${CODEDIVIDER}@${CODEREPLACE}@</span>
 <span class="s2">    &quot;</span>
 <span class="o">}</span>                                            |
-
 </pre></div></td></tr><tr><td class=docs>
 
 <p>Pipe our recombined HTML into the layout and let it write the result to
@@ -650,7 +662,6 @@ so that the CSS kicks in properly.</p>
 
 </td><td class=code><div class=highlight><pre>
 layout <span class="s2">&quot;$title&quot;</span>
-
 </pre></div></td></tr><tr><td class=docs>
 
 <h2>More</h2>
@@ -671,10 +682,6 @@ massive body of work on literate programming:</p>
 <li><a href="http://www-cs-faculty.stanford.edu/~knuth/lp.html">Knuth: Literate Programming</a></li>
 <li><a href="http://en.wikipedia.org/wiki/Literate_programming">Literate Programming on Wikipedia</a></li>
 </ul>
-
-</td><td class=code><div class=highlight><pre>
-
-</pre></div></td></tr><tr><td class=docs>
 
 <p>Copyright (C) <a href="http://tomayko.com/about">Ryan Tomayko <tomayko.com/about></a><br>
 This is Free Software distributed under the MIT license.</p>
